@@ -13,13 +13,12 @@ vector<int> getFail(string& str) {
             fail[i] = ++j;
         }
     }
-
     return fail;
 }
 
-void KMP(string& para, string& target, vector<int>& fail, vector<int>& found) {
-    fail = getFail(target);
-    found.clear();
+vector<int> KMP(string& para, string& target) {
+    vector<int> fail = getFail(target);
+    vector<int> found;
 
     for (int i = 0, j = 0; i < (int)para.size(); ++i) {
         while (j > 0 && para[i] != target[j]) {
@@ -29,10 +28,10 @@ void KMP(string& para, string& target, vector<int>& fail, vector<int>& found) {
             if (j == (int)target.size()-1) {
                 found.push_back(i-target.size()+2);
                 j = fail[j];
-            }
-            else {
+            } else {
                 j++;
             }
         }
     }
+    return found;
 }
