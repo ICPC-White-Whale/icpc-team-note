@@ -1,7 +1,13 @@
 import os
 
 codes = {}
+filenames = []
+
 for filename in os.listdir("algorithms"):
+    filenames.append(filename)
+
+filenames.sort()
+for filename in filenames:
     path = os.path.join("algorithms", filename)
     stream = open(path, "r")
     codes[filename] = stream.read()
