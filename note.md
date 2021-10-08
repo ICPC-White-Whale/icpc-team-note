@@ -250,6 +250,49 @@ int main() {
 }
 ```
 
+## Centroid
+
+```c++
+#include <vector>
+#define MAX 1001
+
+using namespace std;
+
+int sz[MAX];
+std::vector<int> adj[MAX];
+
+int getSz(int here,int dad) {
+    sz[here] = 1;
+    for (auto there : adj[here]){
+        if (there == dad) {
+            continue;
+        }
+        sz[here]+=getSz(there,here);
+    }
+    return sz[here];
+}
+ 
+int get_centroid(int here, int dad, int cap) {
+    //cap <---- (tree size)/2
+    for(auto there : adj[here]){
+        if (there == dad) {
+            continue;
+        }
+        if(sz[there] > cap) {
+            return get_centroid(there,here,cap);
+        }
+    }
+    return here;
+}
+
+int main() {
+    int root = 1;
+    getSz(root, -1);
+    int center = get_centroid(1, -1, sz[root]/2);
+    return 0;
+}
+```
+
 ## ConvexHull and RotatingCalipers
 
 ```c++
@@ -450,6 +493,63 @@ public:
     }
 };
 
+```
+
+## Divide and Conquer
+
+```c++
+// DnQ Optimization을 적용하기 위한 조건
+
+/*
+조건 1: dp[t][i] = min_{k<i} (dp[t-1][k] + C[k][i])
+*/
+
+/*
+조건 2: 아래 두 조건들 중 적어도 하나를 만족
+
+    a)  A[t][i]를 dp[t][i]를 만족시키는 최소의 k라고 할 때 아래 부등식을 만족
+        A[t][i] <= A[t][i+1]
+    
+    b)  비용 C가 a<=b<=c<=d인 a, b, c, d에 대하여
+        사각부등식 C[a][c] + C[b][d] <= C[a][d] + C[b][c] 를 만족
+*/
+
+// 위 두 조건이 만족될 경우, O(KN log N)으로 해결가능
+
+typedef long long Long;
+
+int L, G;
+Long Ci[8001];
+Long sum[8001];
+
+Long dp[801][8001], properK[801][8001];
+
+// 문제에 맞게 Cost 정의
+Long getCost(Long a, Long b) {
+    return (sum[b] - sum[a - 1]) * (b - a + 1);
+}
+
+// dp[t][i] = min_{k<i} (dp[t-1][k] + C[k][i]) 꼴의 문제를 풀고자 할 때,
+// 아래 함수는 dp[t][l~r]을 채운다.
+void Find(int t, int l, int r, int p, int q) {
+    if (l > r) {
+        return;
+    }
+    int mid = (l + r) >> 1;
+    dp[t][mid] = -1;
+    properK[t][mid] = -1;
+
+    for (int k = p; k <= q; ++k) {
+        Long current = dp[t - 1][k] + getCost(k+1, mid);
+        if (dp[t][mid] == -1 || dp[t][mid] > current) {
+            dp[t][mid] = current;
+            properK[t][mid] = k;
+        }
+    }
+
+    Find(t, l, mid - 1, p, properK[t][mid]);
+    Find(t, mid + 1, r, properK[t][mid], q);
+}
 ```
 
 ## FFT
@@ -697,6 +797,95 @@ vector<int> KMP(string& para, string& target) {
 }
 ```
 
+## Knuth Optimization
+
+```c++
+// Knuth Optimization을 적용하기 위한 조건
+
+/*
+조건 1: dp[i][j] = min_{i<k<j} (dp[i][k] + dp[k][j]) + C[i][j]
+조건 2: C[a][c] + C[b][d] <= C[a][d] + C[b][c] (a <= b <= c <= d)
+조건 3: C[b][c] <= C[a][d] (a <= b <= c <= d)
+*/
+
+// 위 세 조건이 만족될 경우, O(N^2)으로 해결가능
+
+typedef long long Long;
+const Long INF = 1LL<<32;
+
+int data[1003];
+Long d[1003][1003];
+int p[1003][1003];
+
+int getCost(int left, int right) {
+    // define your cost function here
+}
+
+// data의 [left, right]에 값을 채우고 아래 함수를 실행하면 d에 dp값이 채워진다.
+void doKnuthOpt(int left, int right) {
+    for (int i = left; i <= right; i++) {
+		d[i][i] = 0, p[i][i] = i;
+		for (int j = i + 1; j <= right; j++) {
+			d[i][j] = 0, p[i][j] = i;
+        }
+	}
+
+	for (int l = 2; l <= right-left+1; l++)  {
+		for (int i = left; i + l <= right; i++) {
+			int j = i + l;
+			d[i][j] = INF;
+			for (int k = p[i][j - 1]; k <= p[i + 1][j]; k++) {
+                int current = d[i][k] + d[k][j] + getCost(i, j);
+				if (d[i][j] > current) {
+					d[i][j] = current;
+					p[i][j] = k;
+				}
+			}
+		}
+	}
+}
+```
+
+## Largest From Histogram
+
+```c++
+#include <stack>
+#include <algorithm>
+#include <vector>
+
+using namespace std;
+
+typedef long long Long;
+
+Long calcMax(stack<pair<Long, int>>& s, int currIdx) {
+    pair<Long, int> prev = s.top();
+    s.pop();
+    Long height = prev.first;
+    int width = (s.empty() ? currIdx : currIdx - s.top().second - 1);
+    return width * height;
+}
+
+Long findLargestFromHist(vector<Long>& hist) {
+    int n = hist.size();
+    stack<pair<Long, int>> s;
+    Long result = 0;
+    s.emplace(hist[0], 0);
+
+    for (int i = 1; i < n; ++i) {
+        while (!s.empty() && hist[i] < s.top().first) {
+            result = max(calcMax(s, i), result);
+        }
+        s.emplace(hist[i], i);
+    }
+
+    while (!s.empty()) {
+        result = max(calcMax(s, n), result);
+    }
+
+    return result;
+}
+```
+
 ## MCMF
 
 ```c++
@@ -774,6 +963,264 @@ void mcmf(int s, int e) {
 }
 ```
 
+## Merge Sort Tree
+
+```c++
+#include <algorithm>
+#include <vector>
+
+using namespace std;
+
+struct Node {
+    vector<int> subArr;
+    int left, right;
+    Node* leftChild = nullptr;
+    Node* rightChild = nullptr;
+};
+
+void mergeSubArray(vector<int> &v1, vector<int> &v2, vector<int> &dest) {
+    dest.resize(v1.size() + v2.size());
+    size_t i1 = 0, i2 = 0, pos = 0;
+
+    while (i1 < v1.size() && i2 < v2.size()) {
+        if (v1[i1] <= v2[i2]) {
+            dest[pos++] = v1[i1++];
+        } else {
+            dest[pos++] = v2[i2++];
+        }
+    }
+
+    while (i1 < v1.size()) {
+        dest[pos++] = v1[i1++];
+    }
+    while (i2 < v2.size()) {
+        dest[pos++] = v2[i2++];
+    }
+}
+
+Node* buildNode(int left, int right, vector<int>& arr) {
+    Node *current = new Node;
+    current->left = left;
+    current->right = right;
+
+    if (left == right) {
+        current->subArr.push_back(arr[left]);
+    } else {
+        int mid = (left+right)/2;
+        Node* leftChild = buildNode(left, mid, arr);
+        Node* rightChild = buildNode(mid+1, right, arr);
+        mergeSubArray(leftChild->subArr, rightChild->subArr, current->subArr);
+        current->leftChild = leftChild;
+        current->rightChild = rightChild;
+    }
+
+    return current;
+}
+
+int countBigger(Node* current, int threshold, int left, int right) {
+    if (current->right < left || right < current->left) {
+        return 0;
+    }
+    if (left <= current->left && current->right <= right) {
+        auto found = upper_bound(current->subArr.begin(), current->subArr.end(), threshold);
+        return current->subArr.end() - found;
+    }
+
+    return countBigger(current->leftChild, threshold, left, right)
+         + countBigger(current->rightChild, threshold, left, right);
+}
+```
+
+## Mo's Algorithm
+
+```c++
+#include <algorithm>
+#include <vector>
+#include <cmath>
+
+using namespace std;
+
+struct Query {
+    static int sqrtN;
+    int start, end, index;
+    
+    bool operator<(const Query& q) const {
+        if (start / sqrtN != q.start / sqrtN)
+            return start / sqrtN < q.start / sqrtN;
+        else return end < q.end;
+    }
+};
+int Query::sqrtN = 0;
+
+vector<int> mosAlg(vector<int>& arr, vector<Query>& queries) {
+    // sqrt(arr의 크기)로 구간을 나누어 정렬
+    sort(queries.begin(), queries.end());
+
+    // 이 아래부터는 문제에 따라 다른 구현을 해야 함.
+    // 이전에 쿼리한 구간에서 양쪽을 새 구간으로 맞추어서 결과를 구함.
+    // 아래는 쿼리한 구간에서 존재하는 서로 다른 수의 개수를 구하는 예시 (BOJ 13547)
+    int currCount = 0;
+    vector<int> count(*max_element(arr.begin(), arr.end()) + 1);
+    vector<int> answer(queries.size());
+    int start = queries[0].start, end = queries[0].end;
+
+    for (int i = start; i < end; ++i) {
+        ++count[arr[i]];
+        if (count[arr[i]] == 1) {
+            ++currCount;
+        }
+    }
+    answer[queries[0].index] = currCount;
+
+    for (int i = 1; i < (int)queries.size(); ++i) {
+        while (queries[i].start < start) {
+            ++count[arr[--start]];
+            if (count[arr[start]] == 1) {
+                ++currCount;
+            }
+        }
+
+        while (end < queries[i].end) {
+            ++count[arr[end]];
+            if (count[arr[end++]] == 1) {
+                ++currCount;
+            }
+        }
+
+        while (start < queries[i].start) {
+            --count[arr[start]];
+            if (count[arr[start++]] == 0) {
+                --currCount;
+            }
+        }
+
+        while (queries[i].end < end) {
+            --count[arr[--end]];
+            if (count[arr[end]] == 0) {
+                --currCount;
+            }
+        }
+        
+        answer[queries[i].index] = currCount;
+    }
+
+    return answer;
+}
+```
+
+## Persistent Segment Tree
+
+```c++
+#include <vector>
+#include <algorithm>
+#define MAXN 1000
+#define MAXY 1000
+
+using namespace std;
+
+class PST {
+    struct Node {
+        int left, right;  // [left, right]
+        int sum;
+        Node *lchild, *rchild;
+
+        Node(int left, int right) : left(left), right(right), sum(0), lchild(nullptr), rchild(nullptr) {}
+    };
+
+    Node *root[MAXN + 1];  // root[x]: tree of 0 ~ x-1
+    vector<Node *> node_ptrs;
+
+    Node *update_(Node *this_node, int y, bool is_new) {
+        int left = this_node->left;
+        int right = this_node->right;
+        int mid = (left + right) / 2;
+
+        Node *new_node;
+        if (!is_new) {
+            new_node = new Node(left, right);
+            node_ptrs.push_back(new_node);
+            new_node->lchild = this_node->lchild;
+            new_node->rchild = this_node->rchild;
+        } else {
+            new_node = this_node;
+        }
+
+        // Leaf node
+        if (left == right) {
+            new_node->sum = this_node->sum + 1;
+            return new_node;
+        }
+
+        if (y <= mid) {  // Left
+            if (!new_node->lchild) {
+                new_node->lchild = new Node(left, mid);
+                node_ptrs.push_back(new_node->lchild);
+                update_(new_node->lchild, y, true);
+            } else {
+                new_node->lchild = update_(new_node->lchild, y, false);
+            }
+        } else {  // Right
+            if (!new_node->rchild) {
+                new_node->rchild = new Node(mid + 1, right);
+                node_ptrs.push_back(new_node->rchild);
+                update_(new_node->rchild, y, true);
+            } else {
+                new_node->rchild = update_(new_node->rchild, y, false);
+            }
+        }
+
+        int sum = 0;
+        if (new_node->lchild) {
+            sum += new_node->lchild->sum;
+        }
+        if (new_node->rchild) {
+            sum += new_node->rchild->sum;
+        }
+
+        new_node->sum = sum;
+        return new_node;
+    }
+
+    int get_sum_(Node *here, int b, int t) {
+        if (!here || t < here->left || here->right < b) {
+            return 0;
+        } else if (b <= here->left && here->right <= t) {
+            return here->sum;
+        } else {
+            return get_sum_(here->lchild, b, t) + get_sum_(here->rchild, b, t);
+        }
+    }
+
+public:
+    PST() {
+        root[0] = new Node(0, MAXY);
+        node_ptrs.push_back(root[0]);
+        for (int i = 1; i <= MAXN; i++) {
+            root[i] = nullptr;
+        }
+    }
+
+    void update(int xi, int y) {
+        if (!root[xi + 1]) {
+            root[xi + 1] = update_(root[xi], y, false);
+        } else {
+            update_(root[xi + 1], y, true);
+        }
+    }
+
+    // Sum of 0 ~ x-1
+    int get_sum(int xi, int b, int t) {
+        return get_sum_(root[xi + 1], b, t);
+    }
+
+    ~PST() {
+        for (Node *p : node_ptrs) {
+            delete p;
+        }
+    }
+};
+```
+
 ## SCC
 
 ```c++
@@ -822,6 +1269,159 @@ vector<vector<int>> getSccList() {
 }
 
 
+```
+
+## Segment Tree with Lazy
+
+```c++
+#include <vector>
+#include <cmath>
+
+using namespace std;
+using Long = long long;
+
+template <typename T>
+class SegTree {
+private:
+    int originCount;
+    vector<T> tree, lazy;
+    
+    void initialize(int index, int start, int end, const vector<T>& original) {
+        if (start == end) {
+            tree[index] = original[start];
+        } else {
+            int mid = (start + end) / 2;
+            initialize(index*2, start, mid, original);
+            initialize(index*2+1, mid+1, end, original);
+            tree[index] = tree[index*2] + tree[index*2+1];
+        }
+    }
+
+    void propagate(int index, int start, int end) {
+        if (lazy[index]) {
+            tree[index] += lazy[index] * (end-start+1);
+            if (start < end) {
+                lazy[index*2] += lazy[index];
+                lazy[index*2+1] += lazy[index];
+            }
+            lazy[index] = 0;
+        }
+    }
+
+    T query(int index, int reqStart, int reqEnd, int treeStart, int treeEnd) {
+        propagate(index, treeStart, treeEnd);
+
+        if (reqStart <= treeStart && treeEnd <= reqEnd) {
+            return tree[index];
+        } else if (treeStart <= reqEnd && reqStart <= treeEnd) {
+            int treeMed = (treeStart + treeEnd) / 2;
+            return query(index*2, reqStart, reqEnd, treeStart, treeMed)
+                 + query(index*2+1, reqStart, reqEnd, treeMed+1, treeEnd);
+        } else {
+            return 0;
+        }
+    }
+
+    void update(T add, int index, int reqStart, int reqEnd, int treeStart, int treeEnd) {
+        propagate(index, treeStart, treeEnd);
+
+        if (reqStart <= treeStart && treeEnd <= reqEnd) {
+            lazy[index] += add;
+            propagate(index, treeStart, treeEnd);
+        } else if (treeStart <= reqEnd && reqStart <= treeEnd) {
+            int treeMed = (treeStart + treeEnd) / 2;
+            update(add, index*2, reqStart, reqEnd, treeStart, treeMed);
+            update(add, index*2+1, reqStart, reqEnd, treeMed+1, treeEnd);
+            tree[index] = tree[index*2] + tree[index*2+1];
+        }
+    }
+
+public:
+    SegTree(const vector<T>& original) {
+        originCount = (int)original.size();
+        int treeHeight = (int)ceil((float)log2(originCount));
+        int vecSize = (1 << (treeHeight+1));
+        tree.resize(vecSize);
+        lazy.resize(vecSize);
+        initialize(1, 0, originCount-1, original);
+    }
+
+    T query(int start, int end) {
+        return query(1, start, end, 0, originCount-1);
+    }
+
+    void update(int start, int end, T add) {
+        update(add, 1, start, end, 0, originCount-1);
+    }
+};
+```
+
+## Segment Tree
+
+```c++
+#include <vector>
+#include <cmath>
+
+using namespace std;
+using Long = long long;
+
+template <typename T>
+class SegTree {
+private:
+    int originCount;
+    vector<T> tree;
+    
+    void initialize(int index, int start, int end, const vector<T>& original) {
+        if (start == end) {
+            tree[index] = original[start];
+        } else {
+            int mid = (start + end) / 2;
+            initialize(index*2, start, mid, original);
+            initialize(index*2+1, mid+1, end, original);
+            tree[index] = tree[index*2] + tree[index*2+1];
+        }
+    }
+
+    T query(int index, int reqStart, int reqEnd, int treeStart, int treeEnd) {
+        if (reqStart <= treeStart && treeEnd <= reqEnd) {
+            return tree[index];
+        } else if (treeStart <= reqEnd && reqStart <= treeEnd) {
+            int treeMed = (treeStart + treeEnd) / 2;
+            return query(index*2, reqStart, reqEnd, treeStart, treeMed)
+                 + query(index*2+1, reqStart, reqEnd, treeMed+1, treeEnd);
+        } else {
+            return 0;
+        }
+    }
+
+    void update(T add, int index, int reqPos, int treeStart, int treeEnd) {
+        if (treeStart == reqPos && treeEnd == reqPos) {
+            tree[index] += add;
+        } else if (treeStart <= reqPos && reqPos <= treeEnd) {
+            int treeMed = (treeStart + treeEnd) / 2;
+            update(add, index*2, reqPos, treeStart, treeMed);
+            update(add, index*2+1, reqPos, treeMed+1, treeEnd);
+            tree[index] = tree[index*2] + tree[index*2+1];
+        }
+    }
+
+public:
+    SegTree(const vector<T>& original) {
+        originCount = (int)original.size();
+        int treeHeight = (int)ceil((float)log2(originCount));
+        int vecSize = (1 << (treeHeight+1));
+        tree.resize(vecSize);
+        initialize(1, 0, originCount-1, original);
+    }
+
+    T query(int start, int end) {
+        return query(1, start, end, 0, originCount-1);
+    }
+
+    void update(int pos, T add) {
+        update(add, 1, pos, 0, originCount-1);
+    }
+};
 ```
 
 ## Suffix Array and LCP
@@ -1015,5 +1615,106 @@ int main() {
 }
 
 
+```
+
+## 가장 가까운 두 점
+
+```c++
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+
+#define MAX 800000000
+
+using namespace std;
+
+struct coo {
+	int x, y;
+};
+
+int square(int a);
+int dist2(coo a, coo b);
+bool comp_x(coo a, coo b);
+bool comp_y(coo a, coo b);
+
+// [left, right)
+int find_min(vector<coo>& p, int left, int right) {
+	if (left >= right - 1) {
+        return MAX;
+    }
+
+	int left_min = find_min(p, left, (left+right)/2);
+	int right_min = find_min(p, (left+right)/2, right);
+
+	int min_square = min(left_min, right_min);
+	double width = sqrt(min_square);
+
+	double mid_x = (p[(left+right-1)/2].x + p[(left+right)/2].x) / 2.0;
+	double left_x = mid_x - width, right_x = mid_x + width;
+
+	vector<int> xs(right-left);
+	for (int i = left; i < right; i++) {
+		xs[i-left] = p[i].x;
+	}
+
+	// Find an index at which left_x < p[index].x
+	int left_idx = upper_bound(xs.begin(), xs.end(), floor(left_x)) - xs.begin() + left;
+
+	// Find an index at which p[index].x < right_x
+	int right_idx = lower_bound(xs.begin(), xs.end(), ceil(right_x)) - xs.begin() + left;
+
+	// [left_idx, right_idx)
+	if (right_idx - left_idx <= 1) {
+        return min_square;
+    }
+
+	vector<coo> p_in(right_idx-left_idx);
+	for (int i = left_idx; i < right_idx; i++) {
+		p_in[i-left_idx] = p[i];
+	}
+	sort(p_in.begin(), p_in.end(), comp_y);
+
+	int center_min = MAX, bot = 0;
+	for (int i = 1; i < right_idx-left_idx; i++) {
+		while (square(p_in[i].y-p_in[bot].y) >= min_square && bot < i) {
+            bot++;
+        }
+		for (int j = bot; j < i; j++) {
+			center_min = min(center_min, dist2(p_in[i], p_in[j]));
+		}
+	}
+
+	return min(min_square, center_min);
+}
+
+int main() {
+	int n;
+	cin >> n;
+
+	vector<coo> p(n);
+	for (int i = 0; i < n; i++) {
+		cin >> p[i].x >> p[i].y;
+    }
+	sort(p.begin(), p.end(), comp_x);
+
+	cout << find_min(p, 0, n);
+}
+
+int square(int a) {
+	return a * a;
+}
+
+int dist2(coo a, coo b) {
+	return square(a.x - b.x) + square(a.y - b.y);
+}
+
+bool comp_x(coo a, coo b) {
+	return a.x < b.x;
+}
+
+bool comp_y(coo a, coo b) {
+	return a.y < b.y;
+}
 ```
 
