@@ -250,6 +250,411 @@ int main() {
 }
 ```
 
+## ConvexHull and RotatingCalipers
+
+```c++
+#include <bits/stdc++.h>
+
+using namespace std;
+
+typedef long long Long;
+typedef pair<Long, Long> point;
+typedef pair<Long, pair<Long, Long>> dot;
+
+int N;
+vector<dot> dots;
+
+int ccw(point &a, point &b, point &c) {
+    point ab;
+    ab.first = b.first - a.first;
+    ab.second = b.second - a.second;
+    point bc;
+    bc.first = c.first - b.first;
+    bc.second = c.second - b.second;
+    Long ret = ab.first * bc.second - ab.second * bc.first;
+    ret = -ret;
+    if (ret > 0) return 1;
+    else if (ret == 0) return 0;
+    else return -1;
+}
+
+Long getDistance(point &A, point &B) {
+    Long dx = A.first - B.first;
+    Long dy = A.second - B.second;
+    return dx * dx + dy * dy;
+}
+
+bool comp(dot &A, dot &B) {
+    int cw = ccw(dots[0].second, A.second, B.second);
+    if (cw > 0) return true;
+    if (cw < 0) return false;
+    else if (A.first < B.first) return true; // dist A < dist B (기준 점에서 거리)
+    return false;
+}
+
+void setSlope(dot &P0) {
+    for (int i = 1; i < N; i++) {
+        dots[i].first = getDistance(P0.second, dots[i].second);
+    }
+    sort(dots.begin() + 1, dots.end(), comp);
+}
+
+vector<point> getConvexHull() {
+    sort(dots.begin(), dots.end());
+    setSlope(dots[0]);
+    vector<point> ch;
+    ch.push_back(dots[0].second);
+    ch.push_back(dots[1].second);
+    for (int i = 2; i < (int)dots.size(); i++) {
+        while ((int)ch.size() >= 2 && ccw(ch[(int)ch.size() - 2], ch[(int)ch.size() - 1], dots[i].second) <= 0) {
+            ch.pop_back();
+        }
+        ch.push_back(dots[i].second);
+    }
+    return ch;
+}
+
+Long getVectorCross(const point &p1, const point &p2) {
+    return p1.second * p2.first - p1.first * p2.second;
+}
+
+pair<int, int> getMaxDistPair(vector<point> &ch) {
+    int l = 0, r = 0, M = (int)ch.size();
+    for (int i = 0; i < M; i++) {
+        if (ch[i].second < ch[l].second) l = i;
+        if (ch[i].second > ch[r].second) r = i;
+    }
+    long long maxDist = 0;
+    int maxDistL = -1, maxDistR = -1;
+    for (int i = 0; i <= M; i++) {
+        if (maxDist < getDistance(ch[l], ch[r])) {
+            maxDist = getDistance(ch[l], ch[r]);
+            maxDistL = l;
+            maxDistR = r;
+        }
+        point leftVector = {ch[l].second - ch[(l + 1) % M].second,
+                            ch[l].first - ch[(l + 1) % M].first};
+        point rightVector = {ch[r].second - ch[(r + 1) % M].second,
+                             ch[r].first - ch[(r + 1) % M].first};
+
+        if (getVectorCross(leftVector, rightVector) > 0) {
+            l = (l + 1) % M;
+        } else {
+            r = (r + 1) % M;
+        }
+    }
+    return {maxDistL, maxDistR};
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(0);
+    int T;
+    cin >> T;
+    while (T--) {
+        cin >> N;
+        dots.clear();
+        dots.resize(N);
+        for (int i = 0; i < N; i++) {
+            Long Dx, Dy;
+            cin >> Dx >> Dy;
+            dots[i].second.first = Dy;
+            dots[i].second.second = Dx;
+        }
+        vector<point> convexHull = getConvexHull();
+        auto[maxDistL, maxDistR] = getMaxDistPair(convexHull);
+        cout << convexHull[maxDistL].second << ' ' << convexHull[maxDistL].first << ' ';
+        cout << convexHull[maxDistR].second << ' ' << convexHull[maxDistR].first << '\n';
+    }
+}
+```
+
+## Dinic
+
+```c++
+#include <bits/stdc++.h>
+using namespace std;
+
+class Dinic {
+    struct Edge {
+        int v, cap, rev;
+        Edge(int v, int cap, int rev) : v(v), cap(cap), rev(rev) {}
+    };
+
+    const int INF = 2e9;
+    int MAX_V;
+    int S, E;  // source, sink
+    vector<vector<Edge>> adj;
+    vector<int> level, work;
+
+    bool bfs() {
+        fill(level.begin(), level.end(), -1);
+        queue<int> qu;
+        level[S] = 0;
+        qu.push(S);
+        while (qu.size()){
+            int here = qu.front();
+            qu.pop();
+            for (auto i : adj[here]) {
+                int there = i.v;
+                int cap = i.cap;
+                if (level[there] == -1 && cap > 0) {
+                    level[there] = level[here] + 1;
+                    qu.push(there);
+                }
+            }
+        }
+        return level[E] != -1;
+    }
+
+    int dfs(int here, int crtcap) {
+        if (here == E) return crtcap;
+        for (int &i = work[here]; i < int(adj[here].size()); i++) {
+            int there = adj[here][i].v;
+            int cap = adj[here][i].cap;
+            if (level[here] + 1 == level[there] && cap > 0) {
+                int c = dfs(there, min(crtcap, cap));
+                if (c > 0) {
+                    adj[here][i].cap -= c;
+                    adj[there][adj[here][i].rev].cap += c;
+                    return c;
+                }
+            }
+        }
+        return 0;
+    }
+
+public:
+    Dinic(int MAX_V) : MAX_V(MAX_V) {
+        adj.resize(MAX_V);
+        level.resize(MAX_V);
+        work.resize(MAX_V);
+    }
+    void addEdge(int s, int e, int c) {
+        adj[s].emplace_back(e, c, (int)adj[e].size());
+        adj[e].emplace_back(s, 0, (int)adj[s].size() - 1);
+    }
+
+    int getMaxFlow(int s, int e) {
+        S = s, E = e;
+        int res = 0;
+        while (bfs()) {
+            fill(work.begin(), work.end(), 0);
+            while (1) {
+                int flow = dfs(S, INF);
+                if (!flow) break;
+                res += flow;
+            }
+        }
+        return res;
+    }
+};
+
+```
+
+## FFT
+
+```c++
+#include <iostream>
+#include <vector>
+#include <complex>
+using namespace std;
+
+typedef long long Long;
+const double pi = 3.14159265358979323846264;
+
+typedef complex<double> base;
+
+void fft(vector<base> &a, bool inv){
+    int n = a.size(), j = 0;
+    vector<base> roots(n/2);
+    for(int i=1; i<n; i++){
+        int bit = (n >> 1);
+        while(j >= bit){
+            j -= bit;
+            bit >>= 1;
+        }
+        j += bit;
+        if(i < j) swap(a[i], a[j]);
+    }
+    double ang = 2 * acos(-1) / n * (inv ? -1 : 1);
+    for(int i=0; i<n/2; i++){
+        roots[i] = base(cos(ang * i), sin(ang * i));
+    }
+
+    for(int i=2; i<=n; i<<=1){
+        int step = n / i;
+        for(int j=0; j<n; j+=i){
+            for(int k=0; k<i/2; k++){
+                base u = a[j+k], v = a[j+k+i/2] * roots[step * k];
+                a[j+k] = u+v;
+                a[j+k+i/2] = u-v;
+            }
+        }
+    }
+    if(inv) for(int i=0; i<n; i++) a[i] /= n; // skip for OR convolution.
+}
+
+vector<Long> multiply(vector<Long> &v, vector<Long> &w){
+    vector<base> fv(v.begin(), v.end()), fw(w.begin(), w.end());
+    int n = 2;
+    while(n < v.size() + w.size()) n <<= 1;
+    fv.resize(n); fw.resize(n);
+    fft(fv,0); fft(fw,0);
+    for(int i=0; i<n; i++) fv[i] *= fw[i];
+    fft(fv,1);
+    vector<Long> ret(n);
+    for(int i=0; i<n; i++) ret[i] = (Long)round(fv[i].real());
+    return ret;
+}
+
+vector<Long> multiply(vector<Long> &v, vector<Long> &w, Long mod){
+    int n = 2;
+    while(n < v.size() + w.size()) n <<= 1;
+    vector<base> v1(n), v2(n), r1(n), r2(n);
+    for(int i=0; i<v.size(); i++){
+        v1[i] = base(v[i] >> 15, v[i] & 32767);
+    }
+    for(int i=0; i<w.size(); i++){
+        v2[i] = base(w[i] >> 15, w[i] & 32767);
+    }
+    fft(v1,0);
+    fft(v2,0);
+    for(int i=0; i<n; i++){
+        int j = (i ? (n - i) : i);
+        base ans1 = (v1[i] + conj(v1[j])) * base(0.5,0);
+        base ans2 = (v1[i] - conj(v1[j])) * base(0,-0.5);
+        base ans3 = (v2[i] + conj(v2[j])) * base(0.5,0);
+        base ans4 = (v2[i] - conj(v2[j])) * base(0,-0.5);
+        r1[i] = (ans1 * ans3) + (ans1 * ans4) * base(0,1);
+        r2[i] = (ans2 * ans3) + (ans2 * ans4) * base(0,1);
+    }
+    fft(r1,1);
+    fft(r2,1);
+    vector<Long> ret(n);
+    for(int i=0; i<n; i++){
+        Long av = (Long)round(r1[i].real());
+        Long bv = (Long)round(r1[i].imag()) + (Long)round(r2[i].real());
+        Long cv = (Long)round(r2[i].imag());
+        av %= mod, bv %= mod, cv %= mod;
+        ret[i] = (av << 30) + (bv << 15) + cv;
+        ret[i] %= mod;
+        ret[i] += mod;
+        ret[i] %= mod;
+    }
+    return ret;
+}
+
+```
+
+## HopcroftKarp
+
+```c++
+#include <bits/stdc++.h>
+
+using namespace std;
+const int MAX = 10000;
+const int INF = 1e9;
+
+int N, M, A[MAX], B[MAX], dist[MAX];
+bool used[MAX], checkA[MAX], checkB[MAX];
+vector<int> adj[MAX];
+vector<int> leftCover, rightCover;
+
+void bfs() {
+    queue<int> q;
+    for (int i = 0; i < N; i++) {
+        if (!used[i]) {
+            dist[i] = 0;
+            q.push(i);
+        } else dist[i] = INF;
+    }
+    while (!q.empty()) {
+        int a = q.front();
+        q.pop();
+        for (int b: adj[a]) {
+            if (B[b] != -1 && dist[B[b]] == INF) {
+                dist[B[b]] = dist[a] + 1;
+                q.push(B[b]);
+            }
+        }
+    }
+}
+
+bool dfs(int a) {
+    for (int b: adj[a]) {
+        if (B[b] == -1 || (dist[B[b]] == dist[a] + 1 && dfs(B[b]))) {
+            used[a] = true;
+            A[a] = b;
+            B[b] = a;
+            return true;
+        }
+    }
+    return false;
+}
+
+int hopcroftKarp() {
+    int match = 0;
+    fill(A, A + MAX, -1);
+    fill(B, B + MAX, -1);
+    while (true) {
+        bfs();
+        int flow = 0;
+        for (int i = 0; i < N; i++)
+            if (!used[i] && dfs(i)) {
+                flow++;
+            }
+        if (flow == 0) break;
+        match += flow;
+    }
+    return match;
+}
+
+void dfsCover(int x) {
+    if (checkA[x]) {
+        return;
+    }
+    checkA[x] = true;
+    for (auto i : adj[x]) {
+        checkB[i] = true;
+        dfsCover(B[i]);
+    }
+}
+
+void getCover() {
+    for (int i = 0; i < N; i++) {
+        if (A[i] == -1) {
+            dfsCover(i);
+        }
+    }
+    for (int i = 0; i < N; i++) {
+        if (!checkA[i]) {
+            leftCover.push_back(i);
+        }
+    }
+    for (int i = 0; i < M; i++) {
+        if (checkB[i]) {
+            rightCover.push_back(i);
+        }
+    }
+}
+
+int main() {
+    cin >> N >> M;
+    for (int i = 0; i < N; i++) {
+        int k;
+        cin >> k;
+        while (k--) {
+            int b;
+            cin >> b;
+            adj[i].push_back(b - 1);
+        }
+    }
+    int max_match = hopcroftKarp();
+    getCover();
+}
+```
+
 ## KMP
 
 ```c++
@@ -290,6 +695,133 @@ vector<int> KMP(string& para, string& target) {
     }
     return found;
 }
+```
+
+## MCMF
+
+```c++
+#include <bits/stdc++.h>
+
+using namespace std;
+const int MAX_V = 1005;
+
+struct edge {
+    int to, cap, f, cost;
+    edge *dual;
+    edge(int to1, int cap1, int cost1): to(to1), cap(cap1), cost(cost1), f(0), dual(nullptr) {}
+    edge(): edge(-1, 0, 0) {}
+
+    int spare() {
+        return cap - f;
+    }
+
+    void addFlow(int f1) {
+        f += f1;
+        dual->f -= f1;
+    }
+};
+
+int maxFlow, minCost;
+vector<edge*> adj[MAX_V];
+
+void addEdge(int from, int to, int cap, int cost) {
+    edge *e1 = new edge(to, cap, cost), *e2 = new edge(from, 0, -cost);
+    e1->dual = e2;
+    e2->dual = e1;
+    adj[from].push_back(e1);
+    adj[to].push_back(e2);
+}
+
+void mcmf(int s, int e) {
+    while (true) {
+        vector<int> prev(MAX_V, -1), dist(MAX_V, 1e9);
+        vector<bool> visited(MAX_V, false);
+        vector<edge*> path(MAX_V);
+        queue<int> q;
+        q.push(s);
+        dist[s] = 0;
+        visited[s] = true;
+
+        while(!q.empty()){
+            int u = q.front();
+            q.pop();
+            visited[u] = false;
+            for(edge *e: adj[u]){
+                int v = e->to;
+                if(e->spare() > 0 && dist[v] > dist[u] + e->cost){
+                    dist[v] = dist[u] + e->cost;
+                    prev[v] = u;
+                    path[v] = e;
+                    if (!visited[v]) {
+                        q.push(v);
+                        visited[v] = true;
+                    }
+                }
+            }
+        }
+        if(prev[e] == -1) break;
+
+        int flow = 1e9;
+        for(int i = e; i != s; i = prev[i]) {
+            flow = min(flow, path[i]->spare());
+        }
+        for(int i = e; i != s; i = prev[i]) {
+            minCost += path[i]->cost * flow;
+            path[i]->addFlow(flow);
+        }
+        maxFlow += flow;
+    }
+}
+```
+
+## SCC
+
+```c++
+#include <bits/stdc++.h>
+
+using namespace std;
+
+const int MAX = 10000;
+int N, M, dfsn[MAX], finished[MAX], dfsCnt, sccCnt;
+vector<int> adj[MAX];
+vector<int> st;
+
+int dfs(int u) {
+    dfsn[u] = ++dfsCnt;
+    st.push_back(u);
+    int ret = dfsn[u];
+    for (auto v : adj[u]) {
+        if (!dfsn[v]) {
+            ret = min(ret, dfs(v));
+        }
+        else if (!finished[v]) {
+            ret = min(ret, dfsn[v]);
+        }
+    }
+    if (ret == dfsn[u]) {
+        sccCnt++;
+        while (true) {
+            int t = st.back();
+            st.pop_back();
+            finished[t] = sccCnt;
+            if (t == u) break;
+        }
+    }
+    return ret;
+}
+
+vector<vector<int>> getSccList() {
+    for (int i = 0; i < N; i++) {
+        if (!dfsn[i]) dfs(i);
+    }
+    vector<vector<int>> sccList(sccCnt);
+    for (int i = 0; i < N; i++) {
+        sccList[finished[i] - 1].push_back(i);
+    }
+    return sccList;
+}
+
+
 ```
 
 ## Suffix Array and LCP
@@ -385,5 +917,103 @@ struct Trie {
         insert(key.c_str());
     }
 };
+```
+
+## TwoSat
+
+```c++
+#include <bits/stdc++.h>
+using namespace std;
+
+const int MAX = 20001;
+int N, M, dfsn[MAX], finished[MAX], dfsCnt, sccCnt;
+vector<int> adj[MAX];
+vector<int> st;
+
+int getIdx(int x) {
+    // {-N <= i <= N} to {0 <= i < 2N}
+    // !x는 홀수 인덱스, x는 짝수 인덱스
+    if (x < 0) return (-x - 1) * 2 + 1;
+    else return (x - 1) * 2;
+}
+
+int dfs(int u) {
+    dfsn[u] = ++dfsCnt;
+    st.push_back(u);
+    int ret = dfsn[u];
+    for (auto v : adj[u]) {
+        if (!dfsn[v]) {
+            ret = min(ret, dfs(v));
+        }
+        else if (!finished[v]) {
+            ret = min(ret, dfsn[v]);
+        }
+    }
+    if (ret == dfsn[u]) {
+        sccCnt++;
+        while (true) {
+            int t = st.back();
+            st.pop_back();
+            finished[t] = sccCnt;
+            if (t == u) break;
+        }
+    }
+    return ret;
+}
+
+bool isSatisfied() {
+    for (int i = 0; i < N * 2; i++) {
+        if (!dfsn[i]) dfs(i);
+    }
+    vector<vector<int>> sccList(sccCnt);
+    for (int i = 0; i < N * 2; i++) {
+        sccList[finished[i] - 1].push_back(i);
+    }
+    for (int i = 1; i <= N; i++) {
+        if (finished[getIdx(i)] == finished[getIdx(-i)]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+vector<int> getTwoSat() {
+    vector<int> ret(N, -1);
+    vector<pair<int, int>> ts(2 * N);
+    for (int i = 0; i < N * 2; i++) {
+        ts[i].first = finished[i];
+        ts[i].second = i;
+    }
+    sort(ts.begin(), ts.end(), greater<>());
+    // 위상정렬 순서대로
+    for (auto [_, i] : ts) {
+        if (ret[i / 2] >= 0) continue;
+        ret[i / 2] = i % 2; // ~x는 true, x는 false 할당
+    }
+    return ret;
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(0);
+    cin >> N >> M;
+    for (int i = 0; i < M; i++) {
+        int a, b;
+        cin >> a >> b;
+        adj[getIdx(-a)].push_back(getIdx(b));
+        adj[getIdx(-b)].push_back(getIdx(a));
+    }
+    if (!isSatisfied()) {
+        cout << 0 << '\n';
+    } else {
+        cout << 1 << '\n';
+        vector<int> twoSat = getTwoSat();
+        for (auto isTrue : twoSat) {
+            cout << isTrue << ' ';
+        }
+    }
+}
+
+
 ```
 
