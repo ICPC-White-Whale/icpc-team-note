@@ -308,12 +308,8 @@ int N;
 vector<dot> dots;
 
 int ccw(point &a, point &b, point &c) {
-    point ab;
-    ab.first = b.first - a.first;
-    ab.second = b.second - a.second;
-    point bc;
-    bc.first = c.first - b.first;
-    bc.second = c.second - b.second;
+    point ab = {b.first - a.first, b.second - a.second};
+    point bc = {c.first - b.first, c.second - b.second};
     Long ret = ab.first * bc.second - ab.second * bc.first;
     ret = -ret;
     if (ret > 0) return 1;
@@ -755,6 +751,75 @@ int main() {
 }
 ```
 
+## IndexTree
+
+```c++
+#include <bits/stdc++.h>
+using namespace std;
+
+const int SIZE = 4194304;
+
+struct SegTree{
+    int size, start;
+    long long arr[SIZE];
+
+    SegTree(int n): size(n){
+        start = 1;
+        while (start < size) start *= 2;
+        memset(arr, 0, sizeof(arr));
+    }
+
+    void set(int here, long long val) {
+        // 0-index, require prepare()
+        arr[start + here] = val;
+    }
+
+    void prepare(){
+        for (int i = start - 1; i; i--) {
+            arr[i] = arr[i * 2] + arr[i * 2 + 1];
+        }
+    }
+
+    void update(int here, long long val){
+        // 0-index
+        here += start;
+        arr[here] += val;
+        while (here){
+            here /= 2;
+            arr[here] = arr[here * 2] + arr[here * 2 + 1];
+        }
+    }
+
+    long long sum(int l, int r){
+        // [l, r], 0-index
+        l += start;
+        r += start;
+        long long ret = 0;
+        while (l <= r){
+            if (l % 2 == 1) ret += arr[l++];
+            if (r % 2 == 0) ret += arr[r--];
+            l /= 2; r /= 2;
+        }
+        return ret;
+    }
+
+    int search(int k) {
+        // search kth number, k >= 1
+        int pos = 1;
+        while (pos < start) {
+            if (k <= arr[pos * 2]) {
+                pos *= 2;
+            }
+            else {
+                k -= arr[pos * 2];
+                pos = pos * 2 + 1;
+            }
+        }
+        return pos - start;
+    }
+};
+```
+
 ## KMP
 
 ```c++
@@ -846,6 +911,77 @@ void doKnuthOpt(int left, int right) {
 }
 ```
 
+## LCA
+
+```c++
+#include <bits/stdc++.h>
+using namespace std;
+
+const int MAX_D = 17;
+const int MAXN = 100000;
+
+int N, p[MAXN][MAX_D], depth[MAXN];
+vector<int> adj[MAXN];
+bool vst[MAXN];
+
+void dfs(int u, int d) {
+    vst[u] = true;
+    depth[u] = d;
+    for (int v : adj[u])
+        if (!vst[v]) {
+            p[v][0] = u;
+            dfs(v, d + 1);
+        }
+}
+
+void constructLca() {
+    dfs(0, 0);
+    for (int j = 1; j < MAX_D; j++) {
+        for (int i = 1; i < N; i++) {
+            p[i][j] = p[p[i][j - 1]][j - 1];
+        }
+    }
+}
+
+int findLca(int u, int v) {
+    // Make u have u higher depth
+    if (depth[u] < depth[v]) swap(u, v);
+
+    // Elevate u to the depth of v
+    int depth_diff = depth[u] - depth[v];
+    for (int j = MAX_D - 1; j >= 0; j--) {
+        if (depth_diff & (1 << j)) {
+            u = p[u][j];
+        }
+    }
+
+    if (u == v) return u;
+
+    for (int j = MAX_D - 1; j >= 0; j--) {
+        if (p[u][j] != p[v][j]) {
+            u = p[u][j];
+            v = p[v][j];
+        }
+    }
+
+    return p[u][0];
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(0);
+    cin >> N;
+    for (int i = 0; i < N - 1; i++) {
+        int x, y;
+        cin >> x >> y;
+        x--; y--;
+        adj[x].push_back(y);
+        adj[y].push_back(x);
+    }
+    constructLca();
+}
+```
+
 ## Largest From Histogram
 
 ```c++
@@ -883,6 +1019,148 @@ Long findLargestFromHist(vector<Long>& hist) {
     }
 
     return result;
+}
+```
+
+## LiChaoTree
+
+```c++
+#include <bits/stdc++.h>
+
+using namespace std;
+const long long INF = 2e18;
+
+struct Line {
+    long long a, b;
+    Line(): a(0), b(-INF) {}
+    Line(long long a1, long long b1): a(a1), b(b1) {}
+    long long f(long long x) {
+        return a * x + b;
+    }
+};
+
+struct Node {
+    int l, r;
+    long long s, e;
+    Line line;
+    Node(int l1, int r1, long long s1, long long e1, Line line1) : l(l1), r(r1), s(s1), e(e1), line(line1) {}
+};
+
+struct LiChaoTree {
+    vector<Node> nodes;
+
+    LiChaoTree() { nodes.emplace_back(-1, -1, -INF, INF, Line()); }
+    LiChaoTree(long long s, long long e) { nodes.emplace_back(-1, -1, s, e, Line()); }
+
+    void update(Line newLine) { update(0, newLine); }
+    void update(int i, Line newLine) {
+        long long s, e, mid;
+        s = nodes[i].s; e = nodes[i].e;
+        mid = (s + e) / 2;
+
+        Line low, high;
+        if (nodes[i].line.f(s) > newLine.f(s)) {
+            low = newLine;
+            high = nodes[i].line;
+        } else {
+            low = nodes[i].line;
+            high = newLine;
+        }
+
+        if (low.f(e) < high.f(e)) {
+            nodes[i].line = high;
+        } else if (low.f(mid) < high.f(mid)) {
+            nodes[i].line = high;
+            if (nodes[i].r == -1) {
+                nodes[i].r = nodes.size();
+                nodes.emplace_back(-1, -1, mid + 1, e, Line());
+            }
+            update(nodes[i].r, low);
+        } else {
+            nodes[i].line = low;
+            if (nodes[i].l == -1) {
+                nodes[i].l = nodes.size();
+                nodes.emplace_back(-1, -1, s, mid, Line());
+            }
+            update(nodes[i].l, high);
+        }
+    }
+
+    long long query(long long x) { return query(0, x); }
+    long long query(int i, long long x) {
+        if (i == -1) return -INF;
+        long long mid = (nodes[i].s + nodes[i].e) / 2;
+        long long ret = nodes[i].line.f(x);
+        if (x <= mid) return max(ret, query(nodes[i].l, x));
+        else return max(ret, query(nodes[i].r, x));
+    }
+};
+
+int main() {
+    cin.tie(nullptr);
+    ios::sync_with_stdio(false);
+
+    LiChaoTree tree = LiChaoTree(-1e12, 1e12);
+
+    int Q;
+    cin >> Q;
+
+    while (Q--) {
+        int t;
+        cin >> t;
+        if (t == 1) {
+            long long a, b;
+            cin >> a >> b;
+            tree.update(Line(a, b));
+        } else {
+            long long x;
+            cin >> x;
+            cout << tree.query(x) << '\n';
+        }
+    }
+}
+```
+
+## LineIntersect
+
+```c++
+#include <bits/stdc++.h>
+using namespace std;
+typedef long long Long;
+typedef pair<Long, Long> point;
+
+int ccw(point &a, point &b, point &c) {
+    point ab = {b.first - a.first, b.second - a.second};
+    point bc = {c.first - b.first, c.second - b.second};
+    Long ret = ab.first * bc.second - ab.second * bc.first;
+    ret = -ret;
+    if (ret > 0) return 1;
+    else if (ret == 0) return 0;
+    else return -1;
+}
+
+bool isIntersect(point a1, point b1, point a2, point b2) {
+    if (a1 > b1) swap(a1, b1);
+    if (a2 > b2) swap(a2, b2);
+    int p = ccw(a1, b1, a2) * ccw(a1, b1, b2);
+    int q = ccw(a2, b2, a1) * ccw(a2, b2, b1);
+    if (p == 0 && q == 0) {
+        return !(b1 < a2 || b2 < a1);
+    }
+    return p <= 0 && q <= 0;
+}
+
+int main() {
+    point p1, p2, p3, p4;
+    cin >> p1.first >> p1.second;
+    cin >> p2.first >> p2.second;
+    cin >> p3.first >> p3.second;
+    cin >> p4.first >> p4.second;
+    if (isIntersect(p1, p2, p3, p4)) {
+        cout << 1 << '\n';
+    } else {
+        cout << 0 << '\n';
+    }
 }
 ```
 
@@ -1424,6 +1702,77 @@ public:
 };
 ```
 
+## SegmentTreeMaxSubarray
+
+```c++
+#include <bits/stdc++.h>
+using namespace std;
+
+const int INF = 1e9;
+
+struct Node{
+    int s, m, l, r;
+    Node() : s(0), m(-INF), l(-INF), r(-INF) { }
+    Node operator+(Node &right) {
+        Node ret;
+        ret.s = s + right.s;
+        ret.l = max(l, s + right.l);
+        ret.r = max(right.r, r + right.s);
+        ret.m = max(r + right.l, max(m, right.m));
+        return ret;
+    }
+};
+
+struct SegTree{
+    vector<Node> arr;
+    int start;
+    SegTree(int n) {
+        start = 1;
+        while (start < n) start *= 2;
+        arr.resize(start * 2);
+    }
+
+    void set(int here, int v) {
+        // 0-index, require prepare()
+        here += start;
+        arr[here].s = v;
+        arr[here].l = v;
+        arr[here].r = v;
+        arr[here].m = v;
+    }
+
+    void prepare() {
+        for (int i = start - 1; i >= 0; i--) {
+            arr[i] = arr[i * 2] + arr[i * 2 + 1];
+        }
+    }
+
+    void update(int here, int val) {
+        // 0-index
+        set(here, val);
+        here += start;
+        while (here > 0) {
+            here = (here - 1) / 2;
+            arr[here] = arr[here * 2] + arr[here * 2 + 1];
+        }
+    }
+
+    int query(int l, int r) {
+        // [l, r], 0-index
+        l += start;
+        r += start;
+        Node retL = Node();
+        Node retR = Node();
+        while (l <= r) {
+            if (l % 2 == 1) retL = retL + arr[l++];
+            if (r % 2 == 0) retR = arr[r--] + retR;
+            l /= 2, r /= 2;
+        }
+        return (retL + retR).m;
+    }
+};
+```
+
 ## Suffix Array and LCP
 
 ```c++
@@ -1476,6 +1825,26 @@ void extractLCP(const string& str, vector<int>& sa, vector<int>& group, vector<i
             lcp[group[i]] = k;
         }
     }
+}
+```
+
+## TernarySearch
+
+```c++
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    int lo = 0, hi = INF;
+    while (hi - lo >= 3) {
+        int p = (lo * 2 + hi) / 3, q = (lo + hi * 2) / 3;
+        if (f(p) <= f(q)) hi = q;
+        else lo = p;
+    }
+
+    long long result = INF;
+    for (int i = lo; i <= hi; i++)
+        result = min(f(i), result);
 }
 ```
 
