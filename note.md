@@ -1737,6 +1737,18 @@ private:
         }
     }
 
+    // 0~k까지의 합산이 sum 이상이 되는 위치를 log만에 찾음.
+    int findLowerBound(T sum, int index, int treeStart, int treeEnd) {
+        int treeMid = (treeStart+treeEnd) / 2;
+        if (treeStart == treeEnd) {
+            return treeStart;
+        } else if (tree[index*2] < sum) {
+            return findLowerBound(sum-tree[index*2], index*2+1, treeMid+1, treeEnd);
+        } else {
+            return findLowerBound(sum, index*2, treeStart, treeMid);
+        }
+    }
+
 public:
     SegTree(const vector<T>& original) {
         originCount = (int)original.size();
@@ -1752,6 +1764,11 @@ public:
 
     void update(int pos, T add) {
         update(add, 1, pos, 0, originCount-1);
+    }
+
+    // 0~k까지의 합산이 sum 이상이 되는 위치를 log만에 찾음.
+    int findLowerBound(T sum) {
+        return findLowerBound(sum, 1, 0, originCount-1);
     }
 };
 ```
