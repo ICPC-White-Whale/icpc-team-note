@@ -10,12 +10,8 @@ int N;
 vector<dot> dots;
 
 int ccw(point &a, point &b, point &c) {
-    point ab;
-    ab.first = b.first - a.first;
-    ab.second = b.second - a.second;
-    point bc;
-    bc.first = c.first - b.first;
-    bc.second = c.second - b.second;
+    point ab = {b.first - a.first, b.second - a.second};
+    point bc = {c.first - b.first, c.second - b.second};
     Long ret = ab.first * bc.second - ab.second * bc.first;
     ret = -ret;
     if (ret > 0) return 1;
