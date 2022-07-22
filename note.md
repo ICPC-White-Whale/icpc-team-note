@@ -250,6 +250,44 @@ int main() {
 }
 ```
 
+## Bipartite Matching
+
+```c++
+#include <vector>
+#include <algorithm>
+#define LEFT_MAX 1001
+#define RIGHT_MAX 1001
+
+std::vector<int> connected[LEFT_MAX];
+bool visited[LEFT_MAX];
+int matching[RIGHT_MAX];
+
+bool findValidPair(int start) {
+    if (visited[start]) {
+        return false;
+    }
+    visited[start] = true;
+
+    for (int opposite : connected[start]) {
+        if (matching[opposite] == 0 || findValidPair(matching[opposite])) {
+            matching[opposite] = start;
+            return true;
+        }
+    }
+    return false;
+}
+
+int bipartite(int N) {
+    int result = 0;
+    
+    for (int i = 1; i <= N; ++i) {
+        std::fill(visited, visited + N+1, false);
+        result += (findValidPair(i) ? 1 : 0);
+    }
+    return result;
+}
+```
+
 ## Centroid
 
 ```c++
@@ -290,6 +328,53 @@ int main() {
     getSz(root, -1);
     int center = get_centroid(1, -1, sz[root]/2);
     return 0;
+}
+```
+
+## Combination - Linear DP
+
+```c++
+#include <vector>
+
+using Long = long long;
+
+const Long MAX = 400001;
+const Long MOD = 1000000007;
+
+Long factorial(Long n) {
+    static std::vector<Long> dp(MAX+1, -1);
+    if (n == 0) {
+        return 1;
+    } else if (dp[n] != -1) {
+        return dp[n];
+    }
+    return dp[n] = (factorial(n-1) * n) % MOD;
+}
+
+Long getModPow(Long val, Long exp) {
+    if (val == 0) {
+        return 0;
+    } else if (exp == 0) {
+        return 1;
+    } else {
+        Long pow = getModPow(val, exp/2);
+        return (((pow * pow) % MOD) * (exp%2 == 0 ? 1 : val)) % MOD;
+    }
+}
+
+Long getModInverse(Long val) {
+    return getModPow(val, MOD-2);
+}
+
+Long getComb(Long n, Long k) {
+    if (n < k) {
+        return 0;
+    }
+    return (factorial(n) * getModInverse((factorial(n-k)*factorial(k)) % MOD)) % MOD;
+}
+
+Long getCatalan(Long n) {
+    return (getComb(2*n, n) * getModInverse(n+1)) % MOD;
 }
 ```
 
@@ -834,6 +919,86 @@ int main() {
 }
 ```
 
+## Iterate Permutations & Combinations
+
+```c++
+#include <iostream>
+#include <functional>
+
+void iteratePerm(int n, int k, std::function<void(const std::vector<int>&)> callback) {
+    std::vector<bool> inSelected(n+1, false);
+    std::vector<int> selected;
+    selected.reserve(k);
+    std::function<void()> searchCases = [&]() {
+        if (selected.size() == k) {
+            callback(selected);
+        } else {
+            for (int i = 0; i < n; ++i) {
+                if (!inSelected[i]) {
+                    selected.push_back(i);
+                    inSelected[i] = true;
+                    searchCases();
+                    selected.pop_back();
+                    inSelected[i] = false;
+                }
+            }
+        }
+    };
+    searchCases();
+}
+
+void iterateComb(int n, int k, std::function<void(const std::vector<int>&)> callback) {
+    std::vector<int> selected;
+    selected.reserve(k);
+    std::function<void(int)> searchCases = [&](int start) {
+        if (selected.size() == k) {
+            callback(selected);
+        } else if (n-start < k-selected.size()) {
+            return;
+        } else {
+            selected.push_back(start);
+            searchCases(start+1);
+            selected.pop_back();
+            searchCases(start+1);
+        }
+    };
+    searchCases(0);
+}
+
+void iteratePermWithDup(int n, int k, std::function<void(const std::vector<int>&)> callback) {
+    std::vector<int> selected;
+    selected.reserve(k);
+    std::function<void()> searchCases = [&]() {
+        if (selected.size() == k) {
+            callback(selected);
+        } else {
+            for (int i = 0; i < n; ++i) {
+                selected.push_back(i);
+                searchCases();
+                selected.pop_back();
+            }
+        }
+    };
+    searchCases();
+}
+
+void iterateCombWithDup(int n, int k, std::function<void(const std::vector<int>&)> callback) {
+    std::vector<int> selected;
+    selected.reserve(k);
+    std::function<void(int)> searchCases = [&](int start) {
+        if (selected.size() == k) {
+            callback(selected);
+        } else if (start < n) {
+            selected.push_back(start);
+            searchCases(start);
+            selected.pop_back();
+            searchCases(start+1);
+        }
+    };
+    searchCases(0);
+}
+```
+
 ## KMP
 
 ```c++
@@ -922,6 +1087,94 @@ void doKnuthOpt(int left, int right) {
 			}
 		}
 	}
+}
+```
+
+## LCA (with weights)
+
+```c++
+#include <iostream>
+#include <vector>
+#include <algorithm>
+
+typedef long long Long;
+
+const int SPARSE_MAX = 20;
+
+int main() {
+    int n;
+    scanf("%d", &n);
+
+    std::vector<std::vector<std::pair<int, Long>>> tree(n+1);
+    for (int i = 0; i < n-1; ++i) {
+        int u, v;
+        Long c;
+        scanf("%d %d %lld", &u, &v, &c);
+        tree[u].emplace_back(v, c);
+        tree[v].emplace_back(u, c);
+    }
+
+    std::vector<Long> absCost(n+1, -1);
+    std::function<void(int, Long)> initCost = [&](int start, Long prevCost) {
+        absCost[start] = prevCost;
+        for (auto [next, currCost] : tree[start]) {
+            if (absCost[next] == -1) {
+                initCost(next, prevCost+currCost);
+            }
+        }
+    };
+    initCost(1, 0);
+
+    std::vector<int> depth(n+1, 0);
+    std::vector<std::vector<int>> parent(n+1, std::vector<int>(SPARSE_MAX, 0));
+
+    for (int i = 0; i < SPARSE_MAX; ++i) {
+        parent[1][i] = 1;
+    }
+    std::function<void(int, int, int)> initLCA = [&](int start, int currDepth, int upper) {
+        depth[start] = currDepth;
+        parent[start][0] = upper;
+        for (int i = 1; i < SPARSE_MAX; ++i) {
+            parent[start][i] = parent[parent[start][i-1]][i-1];
+        }
+        for (auto [next, _] : tree[start]) {
+            if (parent[next][0] == 0) {
+                initLCA(next, currDepth+1, start);
+            }
+        }
+    };
+    initLCA(1, 0, 1);
+
+    auto findKthParent = [&](int u, int k) -> int {
+        for (int i = 0; i < SPARSE_MAX; ++i) {
+            if (k & (1<<i)) {
+                u = parent[u][i];
+            }
+        }
+        return u;
+    };
+
+    auto findLCA = [&](int u, int v) -> int {
+        int d1 = depth[u], d2 = depth[v];
+        int lower = d1 < d2 ? v : u;
+        int upper = d1 < d2 ? u : v;
+        lower = findKthParent(lower, depth[lower] - depth[upper]);
+
+        if (lower != upper) {
+            for (int i = SPARSE_MAX-1; i >= 0; --i) {
+                if (parent[lower][i] != parent[upper][i]) {
+                    lower = parent[lower][i];
+                    upper = parent[upper][i];
+                }
+            }
+            lower = parent[lower][0];
+            upper = parent[upper][0];
+        }
+
+        return lower;
+    };
+
+    return 0;
 }
 ```
 
